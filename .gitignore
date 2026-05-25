@@ -1,0 +1,25 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# --- IDE / editors ---
+.vscode/
+.idea/
+*.swp
+*~
+
+# --- OS clutter ---
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# --- Generated plot outputs ---
+# The plotter writes its output next to the data files. The CN-60-cryst PNG
+# under examples/ is kept on purpose (it's the README screenshot); everything
+# else the script produces is regenerable, so it stays untracked.
+*.svg
+examples/*.svg
+!examples/CN-60-cryst_pawley_01.png
