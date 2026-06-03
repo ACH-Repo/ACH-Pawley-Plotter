@@ -2,7 +2,7 @@
 
 Publication-quality plots of TOPAS Pawley fit output — observed data, calculated profile, Bragg tick rows per phase, and difference curve — laid out automatically so the proportions stay consistent across datasets.
 
-![Example output: CN-60-cryst, two-phase fit of ZIF-zni and ZIF-4](examples/CN-60-cryst_pawley_01.png)
+![Example output: sample-A-cryst, two-phase fit of ZIF-zni and ZIF-4](examples/sample-A-cryst_pawley_01.png)
 
 ## Quick start
 
@@ -70,14 +70,14 @@ ACH-Pawley-Plotter/
 ├── README.md
 ├── .gitignore
 └── examples/
-    ├── CN-60-cryst.{inp,out}                       # multi-phase TOPAS fit (ZIF-zni + ZIF-4)
-    ├── CN-60-cryst_pawley_01_X_Yobs.txt            # observed intensities
-    ├── CN-60-cryst_pawley_01_Out_X_Ycalc.txt       # calculated profile
-    ├── CN-60-cryst_pawley_01_2Th_Ip_110.txt        # Bragg positions, phase 110 (I4₁cd)
-    ├── CN-60-cryst_pawley_01_2Th_Ip_61.txt         # Bragg positions, phase 61 (Pbca)
-    ├── CN-60-cryst_pawley_01_X_Difference.txt      # difference curve
-    ├── CN-60-cryst_pawley_01.png                   # this README's screenshot
-    └── CN-76-cryst.*                               # single-phase fit, also exercises the SVD_ERR path
+    ├── sample-A-cryst.{inp,out}                       # multi-phase TOPAS fit (ZIF-zni + ZIF-4)
+    ├── sample-A-cryst_pawley_01_X_Yobs.txt            # observed intensities
+    ├── sample-A-cryst_pawley_01_Out_X_Ycalc.txt       # calculated profile
+    ├── sample-A-cryst_pawley_01_2Th_Ip_110.txt        # Bragg positions, phase 110 (I4₁cd)
+    ├── sample-A-cryst_pawley_01_2Th_Ip_61.txt         # Bragg positions, phase 61 (Pbca)
+    ├── sample-A-cryst_pawley_01_X_Difference.txt      # difference curve
+    ├── sample-A-cryst_pawley_01.png                   # this README's screenshot
+    └── sample-B-cryst.*                               # single-phase fit, also exercises the SVD_ERR path
 ```
 
 ## How it works

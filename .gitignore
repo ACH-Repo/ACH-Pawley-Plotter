@@ -17,9 +17,9 @@ desktop.ini
 .DS_Store
 
 # --- Generated plot outputs ---
-# The plotter writes its output next to the data files. The CN-60-cryst PNG
+# The plotter writes its output next to the data files. The sample-A-cryst PNG
 # under examples/ is kept on purpose (it's the README screenshot); everything
 # else the script produces is regenerable, so it stays untracked.
 *.svg
 examples/*.svg
-!examples/CN-60-cryst_pawley_01.png
+!examples/sample-A-cryst_pawley_01.png

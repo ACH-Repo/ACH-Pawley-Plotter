@@ -4,10 +4,10 @@
 ' Selected background: "silicon" 
 '-------------------------------------------------------------- 
 'Input File for structureless profile fitting (Pawley). 
-'Created using python for Henke Group @ TU-Dortmund. 
+'Created using python for <group> @ TU-Dortmund. 
 'Script name: run_pawley.py 
 'Rundate: 18/05/2026 12:25:42 W. Europe Summer Time 
-'Script author Christian Nelle 
+'Script author <author> 
 '-------------------------------------------------------------- 
  
 'Fit-Quality Parameters: (No need to provide sensible initial values)  
@@ -21,7 +21,7 @@ do_errors
  
  
 'Load experimental data to be fitted. 
-xdd CN-60-cryst.brml 
+xdd sample-A-cryst.brml 
 	x_calculation_step = Yobs_dx_at(Xo); convolution_step 4 
  
 'Add Diffractometer settings 
@@ -40,7 +40,7 @@ xdd CN-60-cryst.brml
 		cell_volume  4326.141`_0.470
  
  
-	Create_2Th_Ip_file("CN-60-cryst_pawley_01_2Th_Ip_61.txt") 
+	Create_2Th_Ip_file("sample-A-cryst_pawley_01_2Th_Ip_61.txt") 
  
 	hkl_Is 
 		TCHZ_Peak_Type(@ u2, 1.39296634`_0.576121077_LIMIT_MIN_1.19296634, @ v2,-0.473498426`_0.149285878, @ w2, 0.0493409296`_0.00962652641, , 0, @ x2, 0.994515632`_0.0222212998_LIMIT_MAX_1.09451563, , 0) 
@@ -51,8 +51,8 @@ xdd CN-60-cryst.brml
 		cell_volume  6894.020`_2.462
  
  
-	Create_2Th_Ip_file("CN-60-cryst_pawley_01_2Th_Ip_110.txt") 
+	Create_2Th_Ip_file("sample-A-cryst_pawley_01_2Th_Ip_110.txt") 
  
-Out_X_Yobs("CN-60-cryst_pawley_01_X_Yobs.txt") 
-Out_X_Ycalc("CN-60-cryst_pawley_01_Out_X_Ycalc.txt") 
-Out_X_Difference("CN-60-cryst_pawley_01_X_Difference.txt")
+Out_X_Yobs("sample-A-cryst_pawley_01_X_Yobs.txt") 
+Out_X_Ycalc("sample-A-cryst_pawley_01_Out_X_Ycalc.txt") 
+Out_X_Difference("sample-A-cryst_pawley_01_X_Difference.txt")

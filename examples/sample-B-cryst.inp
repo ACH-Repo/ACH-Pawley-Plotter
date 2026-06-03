@@ -8,10 +8,10 @@
 
 '--------------------------------------------------------------
 'Input File for structureless profile fitting (Pawley).
-'Created using python for Henke Group @ TU-Dortmund.
+'Created using python for <group> @ TU-Dortmund.
 'Script name: run_pawley.py
 'Rundate: 11/05/2026 12:45:12 W. Europe Summer Time
-'Script author Christian Nelle
+'Script author <author>
 '--------------------------------------------------------------
 
 'Fit-Quality Parameters: (No need to provide sensible initial values) 
@@ -25,7 +25,7 @@ do_errors
 
 
 'Load experimental data to be fitted.
-xdd CN-76-cryst.brml
+xdd sample-B-cryst.brml
 	x_calculation_step = Yobs_dx_at(Xo); convolution_step 4
 
 	'Add Diffractometer settings
@@ -46,8 +46,8 @@ xdd CN-76-cryst.brml
 		cell_volume  4380.49
 
 
-Create_2Th_Ip_file("CN-76-cryst_pawley_01_2Th_Ip_61.txt")
+Create_2Th_Ip_file("sample-B-cryst_pawley_01_2Th_Ip_61.txt")
 
-Out_X_Yobs("CN-76-cryst_pawley_01_X_Yobs.txt")
-Out_X_Ycalc("CN-76-cryst_pawley_01_Out_X_Ycalc.txt")
-Out_X_Difference("CN-76-cryst_pawley_01_X_Difference.txt")
+Out_X_Yobs("sample-B-cryst_pawley_01_X_Yobs.txt")
+Out_X_Ycalc("sample-B-cryst_pawley_01_Out_X_Ycalc.txt")
+Out_X_Difference("sample-B-cryst_pawley_01_X_Difference.txt")
