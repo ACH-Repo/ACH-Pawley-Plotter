@@ -22,6 +22,8 @@ Run the script in any folder that contains the output files from a TOPAS Pawley 
 python plot_pawley.py                         # interactive matplotlib windows
 python plot_pawley.py -s                      # save SVGs silently, no window
 python plot_pawley.py -s -c                   # save SVGs and add unit-cell info boxes
+python plot_pawley.py -s -c -x png            # same, but save PNGs instead of SVGs
+python plot_pawley.py -s -c --qall            # show all three quality factors (R_wp, R_exp, χ)
 python plot_pawley.py -s -c -m 20,40,10       # also multiply intensity in 2θ ∈ [20°, 40°] by 10
 python plot_pawley.py -s -m ,30,5  -m 40,,3   # two multiplication ranges: start→30 ×5, 40→end ×3
 ```
@@ -30,8 +32,10 @@ python plot_pawley.py -s -m ,30,5  -m 40,,3   # two multiplication ranges: start
 
 | Flag | Argument | Effect |
 |---|---|---|
-| `-s`, `--silent` | — | Write `<group>.svg` for each fit group; suppress the matplotlib window. |
+| `-s`, `--silent` | — | Write `<group>.<ext>` for each fit group (default `svg`, see `-x`); suppress the matplotlib window. |
 | `-c`, `--cell_info` | — | Add a rounded box per phase showing the refined unit-cell parameters and volume, coloured to match the phase's Bragg ticks. |
+| `-x`, `--extension` | `svg` \| `png` \| `pdf` \| … | Image format for `-s` output — anything matplotlib's `savefig` accepts. A leading dot is tolerated (`.png` ≡ `png`). Default: `svg`. |
+| `--qall` | — | Show all three fit-quality factors — R<sub>wp</sub>, R<sub>exp</sub>, and χ — on the bottom-right line. Without it, only the headline R<sub>wp</sub> is shown. |
 | `-m`, `--multiply` | `a,b,N` (repeatable) | Multiply the observed, calculated, and difference traces by `N` inside `2θ ∈ [a, b]`. Use `,b,N` or `a,,N` to clip to the data range on the open side. Boundaries are drawn as dashed vertical lines and labelled `× N`. |
 
 ## What it does
@@ -40,7 +44,8 @@ python plot_pawley.py -s -m ,30,5  -m 40,,3   # two multiplication ranges: start
 - Parses cell parameters and space groups from the `.out` file in any of the syntaxes TOPAS emits (quoted numeric `"61"`, quoted HM `"P6_3/mmc"`, unquoted `Pbca`, hyphenated `R-3`, …), and renders the Hermann–Mauguin symbol in LaTeX math mode for the legend.
 - Lays out the data, Bragg tick rows, and difference curve in axes-coordinate fractions, so the relative band heights stay consistent regardless of intensity scale or amplitude multiplication.
 - Auto-expands the difference band when the curve amplitude would otherwise overflow into the tick rows.
-- Tolerates missing metadata: if the `.out` file is absent the four core artists still plot; only the χ value and cell-info boxes are skipped.
+- Reads the fit-quality factors from the `.out` and prints the weighted profile R-factor R<sub>wp</sub> in the bottom-right corner by default; `--qall` shows R<sub>wp</sub>, R<sub>exp</sub>, and χ together.
+- Tolerates missing metadata: if the `.out` file is absent the four core artists still plot; only the quality factor and cell-info boxes are skipped.
 
 ## Installation
 
@@ -97,6 +102,10 @@ The `.out` file is located by `find_outfile_for_group()`, which tries `{group}.o
 
 `cryst_round()` keeps only the leading numeric prefix of the mean and uncertainty fields, so TOPAS annotations like `_LIMIT_MAX_<v>`, `_LIMIT_MIN_<v>`, and `_SVD_ERR` are stripped without naming them individually. Anything truly malformed bails out gracefully via a try/except — one bad token at most drops one row from the info box rather than crashing the whole figure.
 
+Rounding follows the crystallographic "rule of 19": the bracketed esd is an integer from 2 to 19 — one significant digit, or two when the leading digit is 1 — and the mean is rounded (half-up) to the same decimal place, so `15.4840 ± 0.0020` prints as `15.484(2)`, not `15.4840(20)`. Output is always fixed-point: a cell volume of `6604 ± 700` Å³ renders as `6600(700)`, never `6.6E+3(7)`.
+
+`get_outfile_info()` reads the fit-quality line TOPAS writes once per refinement (`r_wp <v> r_exp <v> … gof <v>`). The `\s+` after each key name keeps the `_dash` variants on the same line (`r_wp_dash`, `r_exp_dash`) from being captured by mistake. `add_quality()` then prints R<sub>wp</sub> by default (TOPAS reports R-factors as percentages, so they carry a `%`; χ is dimensionless), or all three with `--qall`. Any factor not found is dropped silently, and if none are present no annotation is drawn — the same graceful-degradation rule as the cell-info boxes.
+
 ### Vertical layout
 
 `stack_artists_vertically()` reserves fixed axes-coordinate fractions for each band — data region (`d_calc_exp`), Bragg ticks (`N_pos × marker_height + spacings`), difference band (`d_difference`), plus inter-band clearances and top/bottom padding. It then sets the y-limits explicitly so the data fills exactly its allocated fraction. Because every position is in axes coordinates rather than data coordinates, the layout stays identical when intensities are multiplied (e.g. via `-m`).
@@ -114,10 +123,12 @@ In May 2026 the script was **refactored and partially rewritten by Claude (Anthr
 - Robust file-group discovery that handles `_pawley_NN_`, `_fit_NN_`, and ident-less filenames, plus both `.txt` and `.xy` data files.
 - Rewritten `.out` parser: handles commented-out template lines, both single-line crystal-system macros and loose `a/b/c/al/be/ga` blocks, and every space-group syntax TOPAS emits (numeric, quoted HM, unquoted HM, hyphenated HM, lowercase).
 - Extended Hermann–Mauguin dictionary with case-insensitive alias resolution.
-- Defensive `cryst_round()` that strips TOPAS annotations (`_LIMIT_MAX`, `_LIMIT_MIN`, `_SVD_ERR`, …) by keeping the leading numeric prefix, with try/except salvage for genuinely malformed tokens.
+- Defensive `cryst_round()` that strips TOPAS annotations (`_LIMIT_MAX`, `_LIMIT_MIN`, `_SVD_ERR`, …) by keeping the leading numeric prefix, with try/except salvage for genuinely malformed tokens; esd rounding follows the rule of 19 and output is always fixed-point (no scientific notation).
 - Axes-coordinate-based vertical layout (`stack_artists_vertically()`) — proportions stay consistent regardless of intensity scale, and the difference band auto-expands when its curve would otherwise overflow into the tick rows.
 - New `-m a,b,N` flag for selective intensity multiplication with auto-placed `× N` label and dashed boundary markers.
 - New `-c` flag for unit-cell info boxes, color-matched to tick colours and reordered to follow the legend's top-to-bottom phase order.
-- Graceful degradation: core artists (observed, calculated, ticks, difference) plot for every dataset; metadata-dependent elements (legend HM labels, χ, info boxes) silently downgrade or disappear when the `.out` is missing or the substance is unknown.
+- New `-x <format>` flag to choose the saved image format (svg, png, pdf, …).
+- Fit-quality annotation now reads R<sub>wp</sub>, R<sub>exp</sub>, and χ from the `.out` and shows R<sub>wp</sub> as the headline figure by default; the new `--qall` flag prints all three on one line.
+- Graceful degradation: core artists (observed, calculated, ticks, difference) plot for every dataset; metadata-dependent elements (legend HM labels, quality factors, info boxes) silently downgrade or disappear when the `.out` is missing or the substance is unknown.
 
 The Bragg-tick and difference layout philosophy follows the original script's intent — the AI rewrite changed the mechanics, not the visual identity. This note is included for transparency about what is and isn't human-authored.

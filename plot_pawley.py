@@ -3,7 +3,7 @@ import re
 from glob import glob
 from pathlib import Path
 import argparse
-from decimal import Decimal, getcontext, InvalidOperation
+from decimal import Decimal, getcontext, InvalidOperation, ROUND_HALF_UP
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
@@ -105,7 +105,12 @@ parser.add_argument('-i', '--input', type=str, nargs='+', default=defaults['inpu
 parser.add_argument('-s', '--silent', action='store_true', default=defaults['silent'])
 parser.add_argument('-c', '--cell_info', action='store_true', help='Include unit cell parameter boxes on the plot.')
 parser.add_argument('-m', '--multiply', nargs='+', help='Format: a,b,N. Use ,b,N or a,,N for limits.')
-args = parser.parse_known_args()[0] 
+parser.add_argument('-x', '--extension', type=str, default=settings['extension'],
+                    help='Output image format used with -s, e.g. svg, png, pdf (default: %(default)s).')
+parser.add_argument('--qall', action='store_true',
+                    help='Show all three fit-quality factors (R_wp, R_exp, chi) instead of R_wp alone.')
+args = parser.parse_known_args()[0]
+settings['extension'] = args.extension.lstrip('.').lower()
 
 sgs_HM = {
 	'1':   r'$P1$',
@@ -211,30 +216,34 @@ def cryst_round(mean_err):
 		except (InvalidOperation, ValueError):
 			return None
 	
-	mean  = '{:.16e}'.format(mean)
-	error = '{:.16e}'.format(error)
-	
-	ex_m = int(re.search(r'(?<=e)[+-]*\d*',mean).group()) 
-	ex_e = int(re.search(r'(?<=e)[+-]*\d*',error).group())
-	dex  = 1+ex_m-ex_e
-	
-	mean_cut = '{:.{}}'.format(Decimal(mean),str(dex)+'e')
-	
-	bracket = re.sub(r'e[+-]*\d*','',error)
-	bracket = '{:.1f}'.format(Decimal(bracket))
-	bracket = bracket.replace('.','')
-	
-	mean_round = Decimal(mean_cut)
-	
-	if int(bracket) > 20:
-		bracket = '0.'+bracket
-		bracket = '{:.1f}'.format(Decimal(bracket))
-		bracket = bracket[-1]
-		
-		mean_round = str(Decimal(mean_cut))
-		mean_round = '{:.{}}'.format(Decimal(mean_round),dex)
-		
-	return '%s(%s)'%(mean_round,bracket)
+	# "Rule of 19": the bracketed esd is an integer from 2 to 19 — i.e. one
+	# significant digit, or two when the leading digit is 1. An esd that would
+	# round to 20 or more is shortened by one digit, and the mean is rounded to
+	# the same decimal place: 15.4840(20) -> 15.484(2).
+	error = abs(error)
+	if error == 0:
+		return format(mean, 'f')
+
+	ndec = 1 - error.adjusted()  # decimal places that give the esd two significant digits
+	while True:
+		bracket = int(error.scaleb(ndec).to_integral_value(rounding=ROUND_HALF_UP))
+		if bracket > 19:
+			ndec -= 1
+		elif bracket < 2:
+			ndec += 1
+		else:
+			break
+
+	mean_round = mean.quantize(Decimal(1).scaleb(-ndec), rounding=ROUND_HALF_UP)
+
+	# Always render fixed-point — lattice parameters and cell volumes must never
+	# appear in scientific notation (Decimal's str() flips to it for large
+	# exponents). When the esd's significant digit sits left of the decimal
+	# point (ndec < 0), pad it back out so the bracket stays unambiguous:
+	# 6.6E+3 ± 7E+2 renders as 6600(700), not 6600(7).
+	if ndec < 0:
+		bracket *= 10 ** -ndec
+	return '%s(%s)' % (format(mean_round, 'f'), bracket)
 
 # ==========================================
 # FILE WRANGLING FUNCTIONS
@@ -358,18 +367,27 @@ def get_sgs_from_outfile(path):
 
 
 def get_outfile_info(path):
-	default_info = {'gof': 1.00}
+	"""Parse the fit-quality factors TOPAS writes on one line of the .out:
+	`r_wp <v> r_exp <v> r_p <v> ... gof <v>`. Returns whichever of r_wp / r_exp /
+	gof were found (keys are simply absent when the .out is missing or a factor
+	can't be located), so the caller can skip annotations rather than invent a
+	placeholder value. The `\\s+` after each key keeps the `_dash` variants
+	(`r_wp_dash`, `r_exp_dash`) on the same line from being mistaken for the
+	plain factors."""
+	info = {}
 	if not os.path.exists(path):
-		return default_info
-		
+		return info
+
 	try:
 		filestring = Path(path).read_text()
-		gofrex = re.search(r'gof\s+(\d+\.\d+)', filestring)
-		if gofrex:
-			return {'gof': float(gofrex.group(1))}
+		_float = r'([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)'
+		for key in ('r_wp', 'r_exp', 'gof'):
+			m = re.search(r'\b' + key + r'\s+' + _float, filestring)
+			if m:
+				info[key] = float(m.group(1))
 	except Exception:
 		pass
-	return default_info
+	return info
 
 
 def _strip_topas_comments(text):
@@ -714,8 +732,31 @@ def add_legend(ax):
 	ax.legend(leg_lines, leg_labs, fontsize=settings['legend_fontsize'], frameon=True, loc='upper right')
 
 
-def add_gof(ax, info):
-	text = r'$\chi = %.2f$' % info['gof']
+def add_quality(ax, info, show_all=False):
+	"""Annotate the fit-quality factor(s) in the bottom-right corner.
+
+	Default: the weighted profile R-factor R_wp alone (falling back to chi if
+	R_wp wasn't parsed). With ``show_all`` (the --qall flag): R_wp, R_exp and chi
+	on one line, in the same italic style. R-factors carry a `%` since TOPAS
+	reports them as percentages; chi is dimensionless. Any factor that wasn't
+	found in the .out is silently dropped, and if none are available no text is
+	drawn at all."""
+	if show_all:
+		wanted = [('R_{wp}', 'r_wp', r'\%'), ('R_{exp}', 'r_exp', r'\%'), (r'\chi', 'gof', '')]
+	elif info.get('r_wp') is not None:
+		wanted = [('R_{wp}', 'r_wp', r'\%')]
+	else:
+		wanted = [(r'\chi', 'gof', '')]
+
+	parts = []
+	for symbol, key, unit in wanted:
+		val = info.get(key)
+		if val is not None:
+			parts.append(r'%s = %.2f%s' % (symbol, val, unit))
+	if not parts:
+		return
+
+	text = '$' + r',\ '.join(parts) + '$'
 	ax.text(.99, .01, text, ha='right', va='bottom', size=12, style='italic', transform=ax.transAxes)
 
 
@@ -917,7 +958,7 @@ for group_name in file_dicts:
 	add_legend(ax)
 
 	if settings['show_info']:
-		add_gof(ax, outfile_info)
+		add_quality(ax, outfile_info, show_all=args.qall)
 	if args.cell_info:
 		add_unit_cell_boxes(ax, ordered_phases, ordered_box_colors)
 	style(ax)
