@@ -61,11 +61,15 @@ settings = {
 	'diff_shift_factor': 0.8,       # Max fraction of the difference band the curve may occupy.
 	                                # If the natural amplitude would exceed this, the band auto-expands
 	                                # so the curve fits with (1 - diff_shift_factor) of visual padding.
-	'box_y_top': 0.67,              # Max ceiling height for the first info box
-	'box_x': 0.98,                  # Right-edge x-position (axes coords) for info boxes
-	'box_fontsize': 7,              # Font size (pt) for unit-cell info box text
+	'box_y_top': 0.67,              # Fallback ceiling for the first box when no legend is present
+	'box_x': 0.98,                  # Fallback right-edge x-position (axes coords) when no legend
+	'box_fontsize': 7,              # Default / largest font size (pt) for unit-cell info box text
+	'box_fontsize_min': 5,          # Smallest font (pt) the layout will shrink to before accepting overlap
 	'box_pad': 0.3,                 # Padding (in fontsize units) inside the rounded info box
-	'box_gap': 0.01,                # Vertical gap (axes coords) between stacked info boxes
+	'box_gap': 0.01,                # Vertical gap (axes coords) between vertically stacked boxes
+	'box_col_gap': 0.012,           # Horizontal gap (axes coords) between side-by-side boxes
+	'box_legend_gap': 0.015,        # Whitespace tolerance between the legend's bottom and the first box
+	'box_data_clearance': 0.02,     # Minimum clearance (axes coords) to keep above the data envelope
 	'pastel_weight': 0.78,          # Blend factor toward white for info-box background tinting
 	'multiply_label_y': 0.98,       # Axes-coord y for the 'x N' annotation from -m
 }
@@ -760,48 +764,180 @@ def add_quality(ax, info, show_all=False):
 	ax.text(.99, .01, text, ha='right', va='bottom', size=12, style='italic', transform=ax.transAxes)
 
 
+def _renderer(fig):
+	"""Best-effort renderer fetch that works across the Agg-family backends."""
+	try:
+		return fig.canvas.get_renderer()
+	except AttributeError:
+		fig.canvas.draw()
+		return fig.canvas.get_renderer()
+
+
+def _frac_bbox(artist, ax, renderer):
+	"""Window extent of an artist (its rounded bbox patch, if any) in axes-fraction coords."""
+	getter = getattr(artist, 'get_bbox_patch', None)
+	target = getter() if getter and getter() is not None else artist
+	bb = target.get_window_extent(renderer)
+	(x0, y0), (x1, y1) = ax.transAxes.inverted().transform([(bb.x0, bb.y0), (bb.x1, bb.y1)])
+	return x0, y0, x1, y1
+
+
+def _data_envelope_frac(ax):
+	"""The observed + calculated traces expressed in axes-fraction coordinates.
+	transLimits maps data → axes fraction purely from the view limits, so the result
+	is independent of figure size and can be computed once."""
+	chunks = []
+	for ln in ax.lines[:2]:  # plot order: [0] observed, [1] calculated
+		xd = np.asarray(ln.get_xdata(), dtype=float)
+		yd = np.asarray(ln.get_ydata(), dtype=float)
+		if xd.size:
+			chunks.append(ax.transLimits.transform(np.column_stack([xd, yd])))
+	return np.vstack(chunks) if chunks else np.empty((0, 2))
+
+
+def _envelope_ceiling(env, x_left, x_right):
+	"""Highest data y-fraction within the axes-fraction x-span [x_left, x_right]."""
+	if env.size == 0:
+		return 0.0
+	mask = (env[:, 0] >= x_left) & (env[:, 0] <= x_right)
+	return float(env[mask, 1].max()) if mask.any() else 0.0
+
+
+def _measure_boxes(boxes, fontsize, ax, fig):
+	"""Set all boxes to `fontsize`, draw once, and return per-box
+	(width, height, off_right, off_top) in axes fraction. The offsets are the gap
+	between the text anchor and the patch's right/top edges, so a caller can place
+	the patch's corner exactly by anchoring at (target - offset). All four values
+	depend only on the font size and the figure's physical size, not on position."""
+	for b in boxes:
+		b.set_fontsize(fontsize)
+	fig.canvas.draw()
+	renderer = _renderer(fig)
+	dims = []
+	for b in boxes:
+		x0, y0, x1, y1 = _frac_bbox(b, ax, renderer)
+		ax_x, ax_y = b.get_position()
+		dims.append((x1 - x0, y1 - y0, x1 - ax_x, y1 - ax_y))
+	return dims
+
+
+def _apply_vertical(boxes, dims, top, right, vgap):
+	"""Right-aligned single column, stacked downward from `top`."""
+	y = top
+	for b, (w, h, off_r, off_t) in zip(boxes, dims):
+		b.set_position((right - off_r, y - off_t))
+		y -= h + vgap
+
+
+def _apply_horizontal(boxes, dims, top, right, hgap):
+	"""Right-aligned single row, top edges level with `top`."""
+	r = right
+	for b, (w, h, off_r, off_t) in zip(boxes, dims):
+		b.set_position((r - off_r, top - off_t))
+		r -= w + hgap
+
+
 def add_unit_cell_boxes(ax, phases_cell_info, phase_colors, x=settings['box_x']):
-	"""Plots up to two info boxes stacked top-down, colored to match their respective Bragg reflections.
-	phase_colors: list of color strings in the same order as phases_cell_info entries."""
+	"""Place one info box per phase, coloured to match its Bragg reflections, packed
+	tightly under the legend. The arrangement adapts to the space actually available
+	between the legend and the plotted data, following this hierarchy:
+
+	  1. vertical stack (one column) at the default font size;
+	  2. else a horizontal row (side by side) at the default font size;
+	  3. else shrink the font (retrying vertical, then horizontal) down to
+	     `box_fontsize_min`;
+	  4. else accept overlap, using whichever candidate descends least into the data.
+
+	The layout is measured against the live renderer and recomputed on every resize,
+	so the interactive window and the saved file agree regardless of window size."""
 	if not phases_cell_info:
 		return
+	fig = ax.figure
 
-	current_y = settings['box_y_top']
-
+	# Build the text artists once; positions and font size are set later by relayout.
+	boxes = []
 	for idx, (sg_num, cell_info) in enumerate(phases_cell_info):
 		if not cell_info:
 			continue
+		color = phase_colors[idx] if idx < len(phase_colors) \
+			else settings['2Th_Ip_colors'][idx % len(settings['2Th_Ip_colors'])]
+		max_val_len = max(len(mv + brk) for _, mv, brk in cell_info)
+		lines = [f"${lbl}$: {(mv + brk):>{max_val_len}}" for lbl, mv, brk in cell_info]
+		boxes.append(ax.text(
+			settings['box_x'], settings['box_y_top'], "\n".join(lines),
+			transform=ax.transAxes, family='monospace',
+			fontsize=settings['box_fontsize'], ha='right', va='top',
+			multialignment='left',
+			bbox=dict(boxstyle=f"round,pad={settings['box_pad']}",
+					  facecolor=to_pastel(color), edgecolor='none')))
+	if not boxes:
+		return
 
-		assigned_color = phase_colors[idx] if idx < len(phase_colors) else settings['2Th_Ip_colors'][idx % len(settings['2Th_Ip_colors'])]
-		pastel_bg = to_pastel(assigned_color)
+	env = _data_envelope_frac(ax)
+	clearance = settings['box_data_clearance']
+	vgap = settings['box_gap']
+	hgap = settings['box_col_gap']
 
-		max_val_len = max(len(main_val + brk) for _, main_val, brk in cell_info)
-		
-		lines = []
-		for lbl, main_val, brk in cell_info:
-			val_str = main_val + brk
-			padded_val = f"{val_str:>{max_val_len}}"
-			lines.append(f"${lbl}$: {padded_val}")
-		
-		box_text = "\n".join(lines)
-		
-		t = ax.text(x, current_y, box_text,
-					transform=ax.transAxes,
-					family='monospace',
-					fontsize=settings['box_fontsize'],
-					ha='right',
-					va='top',
-					multialignment='left',
-					bbox=dict(boxstyle=f"round,pad={settings['box_pad']}",
-							  facecolor=pastel_bg,
-							  edgecolor='none'))
+	def relayout():
+		renderer = _renderer(fig)
 
-		ax.figure.canvas.draw()
-		bbox_pixels = t.get_bbox_patch().get_window_extent()
-		bbox_axes = ax.transAxes.inverted().transform(bbox_pixels)
+		# Anchor right below the legend; fall back to fixed coords if it's absent.
+		leg = ax.get_legend()
+		if leg is not None:
+			lx0, ly0, lx1, ly1 = _frac_bbox(leg, ax, renderer)
+			top, right = ly0 - settings['box_legend_gap'], lx1
+		else:
+			top, right = settings['box_y_top'], settings['box_x']
 
-		# Advance layout engine floor down for cascading stack position
-		current_y = bbox_axes[0][1] - settings['box_gap']
+		best = None  # (arrangement, fontsize, block_bottom) — least-intrusive fallback
+		for fs in range(settings['box_fontsize'], settings['box_fontsize_min'] - 1, -1):
+			dims = _measure_boxes(boxes, fs, ax, fig)
+			ws = [d[0] for d in dims]
+			hs = [d[1] for d in dims]
+
+			# Vertical: one right-aligned column.
+			v_left = right - max(ws)
+			v_bottom = top - (sum(hs) + vgap * (len(boxes) - 1))
+			v_fits = v_left >= 0 and v_bottom >= _envelope_ceiling(env, v_left, right) + clearance
+
+			# Horizontal: one right-aligned row.
+			h_left = right - (sum(ws) + hgap * (len(boxes) - 1))
+			h_bottom = top - max(hs)
+			h_fits = h_left >= 0 and h_bottom >= _envelope_ceiling(env, h_left, right) + clearance
+
+			if v_fits:
+				_apply_vertical(boxes, dims, top, right, vgap)
+				return
+			if h_fits:
+				_apply_horizontal(boxes, dims, top, right, hgap)
+				return
+
+			for arrange, bottom in (('V', v_bottom), ('H', h_bottom)):
+				if best is None or bottom > best[2]:
+					best = (arrange, fs, bottom)
+
+		# Nothing fit at any size — accept overlap with the least-descending candidate.
+		arrange, fs, _ = best
+		dims = _measure_boxes(boxes, fs, ax, fig)
+		(_apply_vertical if arrange == 'V' else _apply_horizontal)(
+			boxes, dims, top, right, vgap if arrange == 'V' else hgap)
+
+	relayout()
+
+	# Re-pack when the interactive window is resized so the look stays consistent.
+	state = {'busy': False}
+
+	def _on_resize(event):
+		if state['busy']:
+			return
+		state['busy'] = True
+		try:
+			relayout()
+		finally:
+			state['busy'] = False
+		fig.canvas.draw_idle()
+
+	fig.canvas.mpl_connect('resize_event', _on_resize)
 
 # ==========================================
 # MAIN ROUTINE EXECUTION

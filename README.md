@@ -33,7 +33,7 @@ python plot_pawley.py -s -m ,30,5  -m 40,,3   # two multiplication ranges: start
 | Flag | Argument | Effect |
 |---|---|---|
 | `-s`, `--silent` | — | Write `<group>.<ext>` for each fit group (default `svg`, see `-x`); suppress the matplotlib window. |
-| `-c`, `--cell_info` | — | Add a rounded box per phase showing the refined unit-cell parameters and volume, coloured to match the phase's Bragg ticks. |
+| `-c`, `--cell_info` | — | Add a rounded box per phase showing the refined unit-cell parameters and volume, coloured to match the phase's Bragg ticks. Boxes pack tightly under the legend and adapt to the available space (see below). |
 | `-x`, `--extension` | `svg` \| `png` \| `pdf` \| … | Image format for `-s` output — anything matplotlib's `savefig` accepts. A leading dot is tolerated (`.png` ≡ `png`). Default: `svg`. |
 | `--qall` | — | Show all three fit-quality factors — R<sub>wp</sub>, R<sub>exp</sub>, and χ — on the bottom-right line. Without it, only the headline R<sub>wp</sub> is shown. |
 | `-m`, `--multiply` | `a,b,N` (repeatable) | Multiply the observed, calculated, and difference traces by `N` inside `2θ ∈ [a, b]`. Use `,b,N` or `a,,N` to clip to the data range on the open side. Boundaries are drawn as dashed vertical lines and labelled `× N`. |
@@ -45,6 +45,7 @@ python plot_pawley.py -s -m ,30,5  -m 40,,3   # two multiplication ranges: start
 - Lays out the data, Bragg tick rows, and difference curve in axes-coordinate fractions, so the relative band heights stay consistent regardless of intensity scale or amplitude multiplication.
 - Auto-expands the difference band when the curve amplitude would otherwise overflow into the tick rows.
 - Reads the fit-quality factors from the `.out` and prints the weighted profile R-factor R<sub>wp</sub> in the bottom-right corner by default; `--qall` shows R<sub>wp</sub>, R<sub>exp</sub>, and χ together.
+- Packs the unit-cell boxes (`-c`) tightly under the legend and adapts the arrangement to the space available above the data: it stacks them in a column, switches to a side-by-side row if the column won't fit, shrinks the font as a last resort, and recomputes on every window resize so the interactive view and the saved file match.
 - Tolerates missing metadata: if the `.out` file is absent the four core artists still plot; only the quality factor and cell-info boxes are skipped.
 
 ## Installation
@@ -112,6 +113,10 @@ Rounding follows the crystallographic "rule of 19": the bracketed esd is an inte
 
 If the difference curve's natural peak-to-trough amplitude would overflow `d_difference`, the band is auto-expanded just enough to fit it with `diff_shift_factor` (default 0.8) of visual padding. The curve's median is anchored exactly on the band centre.
 
+### Unit-cell box placement
+
+The box text is sized in points (a physical unit) while everything else is positioned in axes-fraction coordinates, so a box occupies a different fraction of the plot depending on the figure's physical size — which is why a naive one-shot layout looks different in the resizable interactive window than in the fixed-size saved file. `add_unit_cell_boxes()` instead measures the boxes against the live renderer and lays them out anchored just under the legend, following a fixed hierarchy: a single right-aligned **column** at the default font; failing that a side-by-side **row**; failing that the font is **shrunk** (retrying column then row) down to `box_fontsize_min`; and if even that overflows, the least-intrusive candidate is used and overlap is accepted. "Fit" is judged against the observed + calculated envelope under the box block (computed once via `transLimits`, which is figure-size independent), keeping `box_data_clearance` above it. A `resize_event` handler re-runs the whole layout whenever the window changes size, so the on-screen and saved figures agree.
+
 </details>
 
 ## Authorship and history
@@ -127,6 +132,7 @@ In May 2026 the script was **refactored and partially rewritten by Claude (Anthr
 - Axes-coordinate-based vertical layout (`stack_artists_vertically()`) — proportions stay consistent regardless of intensity scale, and the difference band auto-expands when its curve would otherwise overflow into the tick rows.
 - New `-m a,b,N` flag for selective intensity multiplication with auto-placed `× N` label and dashed boundary markers.
 - New `-c` flag for unit-cell info boxes, color-matched to tick colours and reordered to follow the legend's top-to-bottom phase order.
+- Adaptive unit-cell box placement: boxes pack tightly under the legend and fall back column → row → smaller font → accepted overlap depending on the space above the data, measured against the live renderer and recomputed on resize so the window and the saved file match.
 - New `-x <format>` flag to choose the saved image format (svg, png, pdf, …).
 - Fit-quality annotation now reads R<sub>wp</sub>, R<sub>exp</sub>, and χ from the `.out` and shows R<sub>wp</sub> as the headline figure by default; the new `--qall` flag prints all three on one line.
 - Graceful degradation: core artists (observed, calculated, ticks, difference) plot for every dataset; metadata-dependent elements (legend HM labels, quality factors, info boxes) silently downgrade or disappear when the `.out` is missing or the substance is unknown.
