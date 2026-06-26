@@ -1246,7 +1246,7 @@ def _legend_label_for(canon_sg, hm_label, substance):
 		return hm_label
 	if fmt == 'HERMANN-MAUGUIN+SUBSTANCE':
 		if hm_label and substance:
-			return f"{hm_label} ({substance})"
+			return f"{hm_label} | {substance}"
 		if hm_label:
 			return hm_label
 		if substance:
