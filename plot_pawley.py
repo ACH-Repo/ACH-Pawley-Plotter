@@ -116,19 +116,247 @@ parser.add_argument('--qall', action='store_true',
 args = parser.parse_known_args()[0]
 settings['extension'] = args.extension.lstrip('.').lower()
 
+# Short Hermann-Mauguin symbols for all 230 space groups, as LaTeX math strings.
+# Inversion axes use \overline{N} (renders a clean full-width bar over the digit);
+# screw axes use single-digit subscripts (e.g. 2_1, 6_3); glide/mirror planes use '/'.
 sgs_HM = {
+	# Triclinic
 	'1':   r'$P1$',
-	'2':   r'$P\bar{1}$',
+	'2':   r'$P\overline{1}$',
+	# Monoclinic
+	'3':   r'$P2$',
+	'4':   r'$P2_1$',
+	'5':   r'$C2$',
+	'6':   r'$Pm$',
+	'7':   r'$Pc$',
+	'8':   r'$Cm$',
+	'9':   r'$Cc$',
 	'10':  r'$P2/m$',
 	'11':  r'$P2_1/m$',
+	'12':  r'$C2/m$',
+	'13':  r'$P2/c$',
 	'14':  r'$P2_1/c$',
+	'15':  r'$C2/c$',
+	# Orthorhombic
+	'16':  r'$P222$',
+	'17':  r'$P222_1$',
+	'18':  r'$P2_12_12$',
 	'19':  r'$P2_12_12_1$',
+	'20':  r'$C222_1$',
+	'21':  r'$C222$',
+	'22':  r'$F222$',
+	'23':  r'$I222$',
+	'24':  r'$I2_12_12_1$',
+	'25':  r'$Pmm2$',
+	'26':  r'$Pmc2_1$',
+	'27':  r'$Pcc2$',
+	'28':  r'$Pma2$',
+	'29':  r'$Pca2_1$',
+	'30':  r'$Pnc2$',
+	'31':  r'$Pmn2_1$',
+	'32':  r'$Pba2$',
+	'33':  r'$Pna2_1$',
+	'34':  r'$Pnn2$',
+	'35':  r'$Cmm2$',
+	'36':  r'$Cmc2_1$',
+	'37':  r'$Ccc2$',
+	'38':  r'$Amm2$',
+	'39':  r'$Aem2$',
+	'40':  r'$Ama2$',
+	'41':  r'$Aea2$',
+	'42':  r'$Fmm2$',
+	'43':  r'$Fdd2$',
+	'44':  r'$Imm2$',
+	'45':  r'$Iba2$',
+	'46':  r'$Ima2$',
+	'47':  r'$Pmmm$',
+	'48':  r'$Pnnn$',
+	'49':  r'$Pccm$',
+	'50':  r'$Pban$',
+	'51':  r'$Pmma$',
+	'52':  r'$Pnna$',
+	'53':  r'$Pmna$',
+	'54':  r'$Pcca$',
+	'55':  r'$Pbam$',
+	'56':  r'$Pccn$',
+	'57':  r'$Pbcm$',
+	'58':  r'$Pnnm$',
+	'59':  r'$Pmmn$',
+	'60':  r'$Pbcn$',
 	'61':  r'$Pbca$',
+	'62':  r'$Pnma$',
+	'63':  r'$Cmcm$',
+	'64':  r'$Cmce$',
+	'65':  r'$Cmmm$',
+	'66':  r'$Cccm$',
+	'67':  r'$Cmme$',
+	'68':  r'$Ccce$',
+	'69':  r'$Fmmm$',
+	'70':  r'$Fddd$',
+	'71':  r'$Immm$',
+	'72':  r'$Ibam$',
+	'73':  r'$Ibca$',
+	'74':  r'$Imma$',
+	# Tetragonal
+	'75':  r'$P4$',
+	'76':  r'$P4_1$',
+	'77':  r'$P4_2$',
+	'78':  r'$P4_3$',
+	'79':  r'$I4$',
+	'80':  r'$I4_1$',
+	'81':  r'$P\overline{4}$',
+	'82':  r'$I\overline{4}$',
+	'83':  r'$P4/m$',
+	'84':  r'$P4_2/m$',
+	'85':  r'$P4/n$',
+	'86':  r'$P4_2/n$',
+	'87':  r'$I4/m$',
+	'88':  r'$I4_1/a$',
+	'89':  r'$P422$',
+	'90':  r'$P42_12$',
+	'91':  r'$P4_122$',
+	'92':  r'$P4_12_12$',
+	'93':  r'$P4_222$',
+	'94':  r'$P4_22_12$',
+	'95':  r'$P4_322$',
+	'96':  r'$P4_32_12$',
+	'97':  r'$I422$',
+	'98':  r'$I4_122$',
+	'99':  r'$P4mm$',
+	'100': r'$P4bm$',
+	'101': r'$P4_2cm$',
+	'102': r'$P4_2nm$',
+	'103': r'$P4cc$',
+	'104': r'$P4nc$',
+	'105': r'$P4_2mc$',
+	'106': r'$P4_2bc$',
+	'107': r'$I4mm$',
+	'108': r'$I4cm$',
+	'109': r'$I4_1md$',
 	'110': r'$I4_1cd$',
-	'148': r'$R\bar{3}$',
+	'111': r'$P\overline{4}2m$',
+	'112': r'$P\overline{4}2c$',
+	'113': r'$P\overline{4}2_1m$',
+	'114': r'$P\overline{4}2_1c$',
+	'115': r'$P\overline{4}m2$',
+	'116': r'$P\overline{4}c2$',
+	'117': r'$P\overline{4}b2$',
+	'118': r'$P\overline{4}n2$',
+	'119': r'$I\overline{4}m2$',
+	'120': r'$I\overline{4}c2$',
+	'121': r'$I\overline{4}2m$',
+	'122': r'$I\overline{4}2d$',
+	'123': r'$P4/mmm$',
+	'124': r'$P4/mcc$',
+	'125': r'$P4/nbm$',
+	'126': r'$P4/nnc$',
+	'127': r'$P4/mbm$',
+	'128': r'$P4/mnc$',
+	'129': r'$P4/nmm$',
+	'130': r'$P4/ncc$',
+	'131': r'$P4_2/mmc$',
+	'132': r'$P4_2/mcm$',
+	'133': r'$P4_2/nbc$',
+	'134': r'$P4_2/nnm$',
+	'135': r'$P4_2/mbc$',
+	'136': r'$P4_2/mnm$',
+	'137': r'$P4_2/nmc$',
+	'138': r'$P4_2/ncm$',
+	'139': r'$I4/mmm$',
+	'140': r'$I4/mcm$',
+	'141': r'$I4_1/amd$',
+	'142': r'$I4_1/acd$',
+	# Trigonal
+	'143': r'$P3$',
+	'144': r'$P3_1$',
+	'145': r'$P3_2$',
+	'146': r'$R3$',
+	'147': r'$P\overline{3}$',
+	'148': r'$R\overline{3}$',
+	'149': r'$P312$',
+	'150': r'$P321$',
+	'151': r'$P3_112$',
+	'152': r'$P3_121$',
+	'153': r'$P3_212$',
+	'154': r'$P3_221$',
+	'155': r'$R32$',
+	'156': r'$P3m1$',
+	'157': r'$P31m$',
+	'158': r'$P3c1$',
+	'159': r'$P31c$',
+	'160': r'$R3m$',
+	'161': r'$R3c$',
+	'162': r'$P\overline{3}1m$',
+	'163': r'$P\overline{3}1c$',
+	'164': r'$P\overline{3}m1$',
+	'165': r'$P\overline{3}c1$',
+	'166': r'$R\overline{3}m$',
+	'167': r'$R\overline{3}c$',
+	# Hexagonal
+	'168': r'$P6$',
+	'169': r'$P6_1$',
+	'170': r'$P6_5$',
+	'171': r'$P6_2$',
+	'172': r'$P6_4$',
+	'173': r'$P6_3$',
+	'174': r'$P\overline{6}$',
+	'175': r'$P6/m$',
+	'176': r'$P6_3/m$',
+	'177': r'$P622$',
 	'178': r'$P6_122$',
+	'179': r'$P6_522$',
+	'180': r'$P6_222$',
+	'181': r'$P6_422$',
+	'182': r'$P6_322$',
+	'183': r'$P6mm$',
+	'184': r'$P6cc$',
+	'185': r'$P6_3cm$',
+	'186': r'$P6_3mc$',
+	'187': r'$P\overline{6}m2$',
+	'188': r'$P\overline{6}c2$',
+	'189': r'$P\overline{6}2m$',
+	'190': r'$P\overline{6}2c$',
+	'191': r'$P6/mmm$',
+	'192': r'$P6/mcc$',
+	'193': r'$P6_3/mcm$',
 	'194': r'$P6_3/mmc$',
-	'217': r'$I\bar{4}3d$',
+	# Cubic
+	'195': r'$P23$',
+	'196': r'$F23$',
+	'197': r'$I23$',
+	'198': r'$P2_13$',
+	'199': r'$I2_13$',
+	'200': r'$Pm\overline{3}$',
+	'201': r'$Pn\overline{3}$',
+	'202': r'$Fm\overline{3}$',
+	'203': r'$Fd\overline{3}$',
+	'204': r'$Im\overline{3}$',
+	'205': r'$Pa\overline{3}$',
+	'206': r'$Ia\overline{3}$',
+	'207': r'$P432$',
+	'208': r'$P4_232$',
+	'209': r'$F432$',
+	'210': r'$F4_132$',
+	'211': r'$I432$',
+	'212': r'$P4_332$',
+	'213': r'$P4_132$',
+	'214': r'$I4_132$',
+	'215': r'$P\overline{4}3m$',
+	'216': r'$F\overline{4}3m$',
+	'217': r'$I\overline{4}3m$',
+	'218': r'$P\overline{4}3n$',
+	'219': r'$F\overline{4}3c$',
+	'220': r'$I\overline{4}3d$',
+	'221': r'$Pm\overline{3}m$',
+	'222': r'$Pn\overline{3}n$',
+	'223': r'$Pm\overline{3}n$',
+	'224': r'$Pn\overline{3}m$',
+	'225': r'$Fm\overline{3}m$',
+	'226': r'$Fm\overline{3}c$',
+	'227': r'$Fd\overline{3}m$',
+	'228': r'$Fd\overline{3}c$',
+	'229': r'$Im\overline{3}m$',
+	'230': r'$Ia\overline{3}d$',
 }
 
 # Aliases mapping raw HM strings (as they may appear in .out / .inp files,
@@ -146,7 +374,8 @@ _hm_aliases = {
 	'r-3':        '148', 'rbar3': '148', 'r3bar': '148',
 	'p6_122':     '178', 'p6122': '178',
 	'p6_3/mmc':   '194', 'p63/mmc': '194',
-	'i-43d':      '217', 'ibar43d': '217', 'i4bar3d': '217',
+	'i-43m':      '217', 'ibar43m': '217', 'i4bar3m': '217',
+	'i-43d':      '220', 'ibar43d': '220', 'i4bar3d': '220',
 }
 
 def _norm_hm(s):
@@ -353,21 +582,28 @@ def find_outfile_for_group(group_key, all_out_files=None):
 # PARSING & DATA EXTRACTION
 # ==========================================
 
-def get_sgs_from_outfile(path):
+def get_substances_from_outfile(path):
+	"""Parse the wizard's `Selected phases:` audit line into an ORDERED list of
+	(substance_name, sg_token) tuples, one per phase, in declaration order.
+
+	Order and duplicates are preserved on purpose: two phases that share a space
+	group are two distinct entries here. (The previous sg-keyed dict silently
+	collapsed them, which is why same-SG fits lost a substance.) Phases are matched
+	to ticks by their ordinal position downstream, not by space group. Returns []
+	when the line is absent (e.g. a hand-written .out)."""
 	if not os.path.exists(path):
-		return {}
-		
-	sgs = {}
+		return []
+
+	phases = []
 	try:
 		with open(path, 'r', encoding='utf-8') as inf:
 			for line in inf:
 				if 'Selected phases:' in line:
-					matches = re.findall(r'"([^"]+)"\s*\((\d+)\)', line)
-					for substance_name, sg_num in matches:
-						sgs[sg_num] = substance_name
+					phases = re.findall(r'"([^"]+)"\s*\((\d+)\)', line)
+					break  # only the first audit line is authoritative
 	except Exception as e:
 		print(f"Warning: Error encountered reading metadata from {path}: {e}")
-	return sgs
+	return phases
 
 
 def get_outfile_info(path):
@@ -951,10 +1187,51 @@ def _pick_by_ident(sorted_filegroup, ident_substr):
 	return None
 
 
-def _tick_sg_token(ident):
-	"""Return the suffix after `2Th_Ip_` in a tick-file ident, or None if absent."""
+def _parse_tick_ident(ident):
+	"""Extract (phase_index, sg_token) from a 2Th_Ip file's ident suffix.
+
+	Recognised forms of the suffix after `2Th_Ip_`:
+	  'p<idx>_<sg>'  -> (idx,  '<sg>')   current wizard, e.g. 'p2_14' -> (2, '14')
+	  '<sg>_<n>'     -> (None, '<sg>')   manual de-dup rename,  e.g. '14_2' -> (None, '14')
+	  '<sg>'         -> (None, '<sg>')   legacy single token,   e.g. '14' or 'Pbca'
+
+	phase_index is 1-based (or None when the filename doesn't declare one); sg_token
+	may be a number or an HM symbol and is passed through resolve_sg downstream. The
+	explicit index is what makes same-space-group phases unambiguous; the older forms
+	are still accepted so existing output keeps plotting."""
 	m = re.search(rf'^{re.escape(settings["2Th_Ip_ident"])}_(\S+)$', ident)
-	return m.group(1).strip() if m else None
+	if not m:
+		return None, None
+	suffix = m.group(1).strip()
+	mp = re.match(r'^p(\d+)_(.+)$', suffix)
+	if mp:
+		return int(mp.group(1)), mp.group(2)
+	md = re.match(r'^(\d+)_(\d+)$', suffix)   # legacy manual `<sg>_<copy>` rename
+	if md:
+		return None, md.group(1)
+	return None, suffix
+
+
+def _phase_ordinal(explicit_idx, canon_sg, phase_sgs, used):
+	"""Resolve which phase (0-based ordinal into the .out's phase list) a tick belongs
+	to, given its explicit p<idx> (or None) and resolved space group (or None).
+
+	Precedence:
+	  1. explicit filename index   — authoritative for current wizard output;
+	  2. an unclaimed space-group match — order-independent for legacy files whose
+	     phases have distinct SGs;
+	  3. the next unclaimed phase in declaration order — last-resort positional.
+
+	`used` holds ordinals already claimed by earlier ticks. Returns an int ordinal,
+	or None when no phase is left to assign."""
+	n = len(phase_sgs)
+	if explicit_idx is not None and 0 <= explicit_idx - 1 < n:
+		return explicit_idx - 1
+	if canon_sg:
+		unused_hits = [k for k, sg in enumerate(phase_sgs) if sg == canon_sg and k not in used]
+		if unused_hits:
+			return unused_hits[0]
+	return next((k for k in range(n) if k not in used), None)
 
 
 def _legend_label_for(canon_sg, hm_label, substance):
@@ -1010,55 +1287,72 @@ for group_name in file_dicts:
 	# or absent entirely (in which case metadata silently disappears but the
 	# core obs/calc/ticks/difference still plot).
 	outfile_path = find_outfile_for_group(group_name, all_out_files) or ''
-	outfile_info     = get_outfile_info(outfile_path)
-	phases_cell_info = get_unit_cell_info(outfile_path)   # [(sg_raw, cell_data), ...]
-	substances       = get_sgs_from_outfile(outfile_path) # {sg_num: name} or {}
+	outfile_info       = get_outfile_info(outfile_path)
+	phases_cell_info   = get_unit_cell_info(outfile_path)         # [(sg_raw, cell_data), ...] in phase order
+	ordered_substances = get_substances_from_outfile(outfile_path)  # [(name, sg), ...] in phase order
 
-	# Pre-compute the canonical sg-number for each phase (for sg↔tick matching)
-	phase_canon_sgs = [resolve_sg(sg_raw)[0] for sg_raw, _ in phases_cell_info]
+	# Per-phase space group, indexed by phase ordinal. A phase is identified by its
+	# position in the .out (1st hkl_Is block, 2nd, ...) — never by its space group,
+	# which is only an attribute and may repeat across phases. Cell-info SG is
+	# preferred; the audit line's SG is a fallback when cells didn't parse.
+	n_phases = max(len(phases_cell_info), len(ordered_substances))
+	phase_sgs = []
+	for k in range(n_phases):
+		sg = resolve_sg(phases_cell_info[k][0])[0] if k < len(phases_cell_info) else None
+		if not sg and k < len(ordered_substances):
+			sg = resolve_sg(ordered_substances[k][1])[0]
+		phase_sgs.append(sg)
 
-	# Build per-tick metadata: filename sg (if any), positional fallback to phase
-	# sg, then color and legend label.
+	# Parse each tick file's (explicit phase index, sg token). When every tick carries
+	# an explicit index, sort into phase order so the join is robust to the filesystem
+	# glob ordering; otherwise keep discovery order for legacy/un-indexed files.
+	parsed = [_parse_tick_ident(ident) for ident, _ in pos_files]
+	if pos_files and all(idx is not None for idx, _ in parsed):
+		order     = sorted(range(len(pos_files)), key=lambda k: parsed[k][0])
+		pos_files = [pos_files[k] for k in order]
+		parsed    = [parsed[k] for k in order]
+
+	# Resolve each tick to a phase ordinal once and reuse it for both the legend label
+	# (via substance) and the unit-cell box pairing, so the two can never disagree.
+	used = set()
 	tick_meta = []
 	for i, (ident, path) in enumerate(pos_files):
-		sg_token = _tick_sg_token(ident)
+		explicit_idx, sg_token = parsed[i]
 		canon_sg, hm_label = resolve_sg(sg_token)
-		# If the tick filename carried no sg, fall back to the i-th phase's sg
-		# (best-effort: relies on declaration order matching).
-		if not canon_sg and i < len(phase_canon_sgs) and phase_canon_sgs[i]:
-			canon_sg = phase_canon_sgs[i]
+		phase_i = _phase_ordinal(explicit_idx, canon_sg, phase_sgs, used)
+		if phase_i is not None:
+			used.add(phase_i)
+
+		# Space group: filename token first, then the matched phase's sg from the .out.
+		if not canon_sg and phase_i is not None and phase_sgs[phase_i]:
+			canon_sg = phase_sgs[phase_i]
+		if canon_sg:
 			hm_label = sgs_HM.get(canon_sg, hm_label)
-		substance = substances.get(canon_sg) if canon_sg else None
+
+		# Substance: looked up by phase ordinal into the ordered list — never by sg.
+		substance = ordered_substances[phase_i][0] \
+			if phase_i is not None and phase_i < len(ordered_substances) else None
+
 		tick_meta.append({
-			'idx':    i,
-			'path':   path,
-			'color':  settings['2Th_Ip_colors'][i % len(settings['2Th_Ip_colors'])],
-			'sg_num': canon_sg,
-			'label':  _legend_label_for(canon_sg, hm_label, substance),
+			'idx':     i,
+			'phase_i': phase_i,
+			'path':    path,
+			'color':   settings['2Th_Ip_colors'][i % len(settings['2Th_Ip_colors'])],
+			'sg_num':  canon_sg,
+			'label':   _legend_label_for(canon_sg, hm_label, substance),
 		})
 
-	# Pair phases (from .out) to ticks in legend order. sg-match first, then take
-	# the next remaining phase positionally. Boxes therefore appear in the same
-	# top-to-bottom order as the legend's Bragg entries.
-	phases_remaining = list(phases_cell_info)
+	# Unit-cell boxes follow the same tick→phase ordinals, so each box appears in the
+	# same top-to-bottom order (and colour) as its legend Bragg entry.
 	ordered_phases     = []
 	ordered_box_colors = []
 	for tick in tick_meta:
-		matched, matched_j = None, None
-		if tick['sg_num']:
-			for j, (sg_raw, cell_data) in enumerate(phases_remaining):
-				canon, _ = resolve_sg(sg_raw)
-				if canon == tick['sg_num']:
-					matched, matched_j = (sg_raw, cell_data), j
-					break
-		if matched is None and phases_remaining:
-			matched, matched_j = phases_remaining[0], 0
-		if matched is not None:
-			ordered_phases.append(matched)
+		j = tick['phase_i']
+		if j is not None and j < len(phases_cell_info):
+			ordered_phases.append(phases_cell_info[j])
 			ordered_box_colors.append(tick['color'])
-			phases_remaining.pop(matched_j)
 
-	# Tick legend labels in pos_files order
+	# Tick legend labels in (phase-ordered) pos_files order
 	settings['2Th_Ip_label'] = [tick['label'] for tick in tick_meta]
 
 	# ---- Plot the core artists ----

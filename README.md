@@ -93,7 +93,9 @@ ACH-Pawley-Plotter/
 
 ### File discovery
 
-`get_file_dicts()` globs every `.txt` and `.xy` in the current directory and matches each filename against a regex that recognises the four TOPAS data-file suffixes (`X_Yobs`, `Out_X_Ycalc`, `2Th_Ip[_<sg>]`, `X_Difference`). The prefix before the matched suffix becomes the group key — so files like `1_X_Yobs.xy` (no ident), `CuRB_pawley_01_X_Yobs.txt` (`_pawley_01_`), and `NK_..._fit_01_X_Yobs.xy` (`_fit_01_`) all group correctly without the script needing a hard-coded ident.
+`get_file_dicts()` globs every `.txt` and `.xy` in the current directory and matches each filename against a regex that recognises the four TOPAS data-file suffixes (`X_Yobs`, `Out_X_Ycalc`, `2Th_Ip[_p<idx>][_<sg>]`, `X_Difference`). The prefix before the matched suffix becomes the group key — so files like `1_X_Yobs.xy` (no ident), `CuRB_pawley_01_X_Yobs.txt` (`_pawley_01_`), and `NK_..._fit_01_X_Yobs.xy` (`_fit_01_`) all group correctly without the script needing a hard-coded ident.
+
+Bragg-position (`2Th_Ip`) files are tied to their phase by **ordinal**, not by space group. `_parse_tick_ident()` reads the `p<idx>` token the wizard now writes (`2Th_Ip_p2_14`) as the phase's 1-based index; legacy `2Th_Ip_<sg>` and hand-renamed `2Th_Ip_<sg>_<copy>` names are still accepted. `_phase_ordinal()` then resolves each tick to a phase position — explicit index first, then an unclaimed space-group match, then positional — and that one ordinal drives both the substance label (looked up by position in the `.out`'s ordered `Selected phases:` list) and the unit-cell box pairing. This is what lets two phases that share a space group (e.g. two `P2₁/c` polymorphs) keep distinct legend entries instead of one overwriting the other.
 
 The `.out` file is located by `find_outfile_for_group()`, which tries `{group}.out` first, then strips any trailing `_pawley_NN` / `_fit_NN` to get a "base" name and looks for `{base}.out`, `{base}_pawley_NN.out`, `{base}_fit_NN.out` as fallbacks. Missing `.out` is non-fatal — the script just skips the χ label and cell-info boxes.
 
