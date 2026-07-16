@@ -26,7 +26,11 @@ python pawley_plotter.py -s -c -x png            # same, but save PNGs instead o
 python pawley_plotter.py -s -c --qall            # show all three quality factors (R_wp, R_exp, χ)
 python pawley_plotter.py -s -c -m 20,40,10       # also multiply intensity in 2θ ∈ [20°, 40°] by 10
 python pawley_plotter.py -s -m ,30,5  -m 40,,3   # two multiplication ranges: start→30 ×5, 40→end ×3
+python pawley_plotter.py -r "(ZIF-8,10)"         # overlay ZIF-8's 10 strongest reflections
+python pawley_plotter.py -r "(ZIF-8,10,magenta),(SiO2,5,teal)"   # two overlay sets
 ```
+
+Bare CIF names in `-r` are looked up in the current directory first, then in `settings['cif_dir_path']` — set that to your CIF folder before first use, or pass a path directly. A full path or a name ending in `.cif` works too.
 
 ## Command-line reference
 
@@ -37,6 +41,7 @@ python pawley_plotter.py -s -m ,30,5  -m 40,,3   # two multiplication ranges: st
 | `-x`, `--extension` | `svg` \| `png` \| `pdf` \| … | Image format for `-s` output — anything matplotlib's `savefig` accepts. A leading dot is tolerated (`.png` ≡ `png`). Default: `svg`. |
 | `--qall` | — | Show all three fit-quality factors — R<sub>wp</sub>, R<sub>exp</sub>, and χ — on the bottom-right line. Without it, only the headline R<sub>wp</sub> is shown. |
 | `-m`, `--multiply` | `a,b,N` (repeatable) | Multiply the observed, calculated, and difference traces by `N` inside `2θ ∈ [a, b]`. Use `,b,N` or `a,,N` to clip to the data range on the open side. Boundaries are drawn as dashed vertical lines and labelled `× N`. |
+| `-r`, `--reflections` | `"(name,N,color),…"` | Overlay the `N` strongest reflections simulated from each CIF as fine dotted verticals, one legend entry per set. `N` defaults to `10`, `color` to a hue not used by the fit traces. Bare names resolve against `settings['cif_dir_path']`. Needs **pymatgen**. |
 
 ## What it does
 
@@ -47,6 +52,7 @@ python pawley_plotter.py -s -m ,30,5  -m 40,,3   # two multiplication ranges: st
 - Reads the fit-quality factors from the `.out` and prints the weighted profile R-factor R<sub>wp</sub> in the bottom-right corner by default; `--qall` shows R<sub>wp</sub>, R<sub>exp</sub>, and χ together.
 - Packs the unit-cell boxes (`-c`) tightly under the legend and adapts the arrangement to the space available above the data: it stacks them in a column, switches to a side-by-side row if the column won't fit, shrinks the font as a last resort, and recomputes on every window resize so the interactive view and the saved file match.
 - Tolerates missing metadata: if the `.out` file is absent the four core artists still plot; only the quality factor and cell-info boxes are skipped.
+- Overlays reflections simulated from arbitrary CIFs (`-r`), for phases that are *not* part of the fit. The Bragg tick rows come from TOPAS's own `2Th_Ip` output, so this is the complementary check: does an unexplained feature line up with a suspected impurity? Sets that can't be resolved, simulated, or that fall outside the plotted 2θ range are reported and skipped rather than aborting the plot.
 
 ## Installation
 
@@ -55,6 +61,8 @@ Python ≥ 3.10. Two dependencies:
 ```bash
 pip install numpy matplotlib
 ```
+
+`-r` additionally needs pymatgen (`pip install pymatgen`) to simulate patterns from CIFs. It's imported only when `-r` is actually used, so everything else runs on numpy and matplotlib alone.
 
 That's it. No build step, no config file — drop `pawley_plotter.py` next to your data (or invoke it from the data directory).
 

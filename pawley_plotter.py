@@ -72,6 +72,19 @@ settings = {
 	'box_data_clearance': 0.02,     # Minimum clearance (axes coords) to keep above the data envelope
 	'pastel_weight': 0.78,          # Blend factor toward white for info-box background tinting
 	'multiply_label_y': 0.98,       # Axes-coord y for the 'x N' annotation from -m
+
+	# REFLECTION OVERLAY (-r): CIF-simulated markers for phases outside the fit
+	'cif_dir_path': r'D:\Workfolder\<you>\CIF_LOC',  # bare -r names resolve against this
+	'cif_wavelength': 1.54060,      # Cu Kalpha1, used to simulate the CIF pattern
+	'reflection_n_top': 10,         # Default count of strongest reflections per set
+	# Hues deliberately disjoint from every trace colour above — X_Yobs 'k',
+	# Out_X_Ycalc 'r', 2Th_Ip blue/orange/pink/gold/red, X_Difference 'g' — so an
+	# overlay never reads as fit output. This intentionally differs from the palette
+	# in pxrd_quickplot.py, whose 'black' and 'goldenrod' would collide here.
+	'reflection_color_cycle': ['magenta', 'teal', 'darkviolet', 'saddlebrown', 'olive'],
+	'reflection_linestyle': ':',
+	'reflection_linewidth': 0.7,
+	'reflection_alpha': 0.75,
 }
 
 defaults = {
@@ -113,6 +126,14 @@ parser.add_argument('-x', '--extension', type=str, default=settings['extension']
                     help='Output image format used with -s, e.g. svg, png, pdf (default: %(default)s).')
 parser.add_argument('--qall', action='store_true',
                     help='Show all three fit-quality factors (R_wp, R_exp, chi) instead of R_wp alone.')
+parser.add_argument('-r', '--reflections', default=None, type=str,
+                    help='Overlay reflection markers from CIFs as fine vertical dotted '
+                         'lines. Format: "(name,N,color),(name,N,color),...". '
+                         'N (count of strongest reflections) defaults to %d; color '
+                         'defaults to a hue not used by the fit traces. Bare CIF names '
+                         'resolve against cif_dir_path. Useful for checking an impurity '
+                         'phase that is not part of the fit. Needs pymatgen.'
+                         % settings['reflection_n_top'])
 args = parser.parse_known_args()[0]
 settings['extension'] = args.extension.lstrip('.').lower()
 
@@ -770,6 +791,136 @@ def get_unit_cell_info(path):
 	return phases_data
 
 # ==========================================
+# REFLECTION OVERLAY (-r)
+# ==========================================
+# Ported from pxrd_quickplot.py. The Bragg tick rows above come from the fit itself
+# (TOPAS 2Th_Ip files); this overlay is the opposite — reflections simulated from a
+# CIF that is NOT in the fit, to check whether a leftover feature belongs to a
+# suspected impurity phase.
+
+def parse_reflections(spec):
+	"""Parse e.g. "(MyCIF,10,magenta),(Other.cif,5)" → [(name, n_top, color_or_None), ...]."""
+	if not spec:
+		return []
+	out = []
+	for inner in re.findall(r'\(([^()]*)\)', spec):
+		parts = [p.strip() for p in inner.split(',')]
+		# Drop trailing empty parts from "(name,N,)" trailing commas, but keep
+		# empties in the middle so positional meaning is preserved.
+		while parts and parts[-1] == '':
+			parts.pop()
+		if not parts:
+			continue
+		name = parts[0]
+		if not name:
+			print(f'[!] Skipping reflection spec "({inner})": missing CIF name.')
+			continue
+		n_top = settings['reflection_n_top']
+		if len(parts) > 1 and parts[1]:
+			try:
+				n_top = int(parts[1])
+				if n_top <= 0:
+					raise ValueError
+			except ValueError:
+				n_top = settings['reflection_n_top']
+				print(f'[!] Reflection spec "({inner})": N must be a positive integer; '
+				      f'using default {n_top}.')
+		color = parts[2] if len(parts) > 2 and parts[2] else None
+		out.append((name, n_top, color))
+	return out
+
+
+def resolve_reflection_cif(name):
+	"""Resolve a CIF name to an existing path.
+
+	Tries, in order: the literal string; the literal string + .cif; cif_dir_path/name;
+	cif_dir_path/name.cif. Returns the resolved path or None."""
+	cif_dir = settings['cif_dir_path']
+	name_cif = name if name.lower().endswith('.cif') else name + '.cif'
+	candidates = [name, name_cif,
+	              os.path.join(cif_dir, name),
+	              os.path.join(cif_dir, name_cif)]
+	for c in candidates:
+		if os.path.exists(c):
+			return c
+	return None
+
+
+def simulate_reflections(cif_path, n_top, two_theta_range):
+	"""Return the 2θ positions of the n_top strongest reflections from a CIF,
+	restricted to the given two_theta range. Sorted ascending in 2θ.
+
+	pymatgen is imported here rather than at module scope so the plotter keeps
+	working with only numpy and matplotlib installed when -r isn't used."""
+	try:
+		from pymatgen.core import Structure
+		from pymatgen.analysis.diffraction.xrd import XRDCalculator
+	except ImportError as e:
+		raise ImportError('Reflection markers need pymatgen installed.') from e
+
+	x_lo, x_hi = float(two_theta_range[0]), float(two_theta_range[1])
+	structure = Structure.from_file(cif_path)
+	calc = XRDCalculator(wavelength=settings['cif_wavelength'])
+	pattern = calc.get_pattern(structure, two_theta_range=(max(x_lo, 1e-6), x_hi))
+	positions = np.asarray(pattern.x, dtype=float)
+	intensities = np.asarray(pattern.y, dtype=float)
+	if positions.size == 0:
+		return np.array([])
+	# Top N strongest, then sort ascending by 2θ.
+	order = np.argsort(-intensities)
+	top = positions[order][:n_top]
+	return np.sort(top)
+
+
+def collect_reflection_sets(ax, spec):
+	"""Resolve, simulate and colour every -r set. Returns [(label, positions, color), ...],
+	skipping (with a message) any set that can't be resolved, simulated, or that has no
+	reflections inside the plotted 2θ range."""
+	ref_sets = []
+	if not spec:
+		return ref_sets
+	x_lo = float(ax.lines[1].get_xdata().min())
+	x_hi = float(ax.lines[1].get_xdata().max())
+	palette = settings['reflection_color_cycle']
+	for i, (name, n_top, color) in enumerate(parse_reflections(spec)):
+		resolved = resolve_reflection_cif(name)
+		if resolved is None:
+			tried = os.path.join(settings['cif_dir_path'],
+			                     name if name.lower().endswith('.cif') else name + '.cif')
+			print(f'[!] Reflection CIF not found: {name}  (also tried {tried!r})')
+			continue
+		try:
+			positions = simulate_reflections(resolved, n_top, (x_lo, x_hi))
+		except Exception as e:
+			print(f'[!] Reflection simulation failed for {name}: {e}')
+			continue
+		if positions.size == 0:
+			print(f'[!] {name}: no reflections in 2-theta range [{x_lo:.2f}, {x_hi:.2f}].')
+			continue
+		ref_sets.append((Path(resolved).stem, positions,
+		                 color or palette[i % len(palette)]))
+	return ref_sets
+
+
+def draw_reflection_lines(ax, ref_sets):
+	"""Draw each set as fine dotted verticals behind the data (zorder below the traces).
+
+	Only the first line of a set carries the label — matplotlib would otherwise emit one
+	legend entry per reflection. Each set therefore contributes exactly one entry to the
+	plot's existing upper-right legend. That legend is why this doesn't reuse
+	pxrd_quickplot's corner-stacked text labels: here the top-right corner already holds
+	the legend and, with -c, the unit-cell boxes."""
+	for label, positions, color in ref_sets:
+		for i, p in enumerate(positions):
+			ax.axvline(p, color=color,
+			           linestyle=settings['reflection_linestyle'],
+			           linewidth=settings['reflection_linewidth'],
+			           alpha=settings['reflection_alpha'],
+			           zorder=1,
+			           label=label if i == 0 else '_nolegend_')
+
+
+# ==========================================
 # MATPLOTLIB COMPOSITION ARRAYS
 # ==========================================
 
@@ -1385,6 +1536,11 @@ for group_name in file_dicts:
 	if args.multiply:
 		process_multiplication(ax, args.multiply)
 	stack_artists_vertically(ax, N_files)
+	# Reflection overlay goes in after both of the above and before the legend:
+	# process_multiplication reaches the difference curve as ax.lines[-1], so any
+	# axvline appended earlier would silently retarget it, and add_legend builds its
+	# entries from whatever is in ax.lines when it runs.
+	draw_reflection_lines(ax, collect_reflection_sets(ax, args.reflections))
 	add_legend(ax)
 
 	if settings['show_info']:
