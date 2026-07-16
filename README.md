@@ -9,7 +9,7 @@ Publication-quality plots of TOPAS Pawley fit output — observed data, calculat
 ```bash
 pip install numpy matplotlib
 cd examples/
-python ../plot_pawley.py -s -c
+python ../pawley_plotter.py -s -c
 ```
 
 That writes one SVG per dataset in the current directory. Drop the `-s` to view interactively instead of saving.
@@ -19,13 +19,13 @@ That writes one SVG per dataset in the current directory. Drop the `-s` to view 
 Run the script in any folder that contains the output files from a TOPAS Pawley fit. It auto-discovers groups, so multiple datasets in the same folder produce multiple plots.
 
 ```bash
-python plot_pawley.py                         # interactive matplotlib windows
-python plot_pawley.py -s                      # save SVGs silently, no window
-python plot_pawley.py -s -c                   # save SVGs and add unit-cell info boxes
-python plot_pawley.py -s -c -x png            # same, but save PNGs instead of SVGs
-python plot_pawley.py -s -c --qall            # show all three quality factors (R_wp, R_exp, χ)
-python plot_pawley.py -s -c -m 20,40,10       # also multiply intensity in 2θ ∈ [20°, 40°] by 10
-python plot_pawley.py -s -m ,30,5  -m 40,,3   # two multiplication ranges: start→30 ×5, 40→end ×3
+python pawley_plotter.py                         # interactive matplotlib windows
+python pawley_plotter.py -s                      # save SVGs silently, no window
+python pawley_plotter.py -s -c                   # save SVGs and add unit-cell info boxes
+python pawley_plotter.py -s -c -x png            # same, but save PNGs instead of SVGs
+python pawley_plotter.py -s -c --qall            # show all three quality factors (R_wp, R_exp, χ)
+python pawley_plotter.py -s -c -m 20,40,10       # also multiply intensity in 2θ ∈ [20°, 40°] by 10
+python pawley_plotter.py -s -m ,30,5  -m 40,,3   # two multiplication ranges: start→30 ×5, 40→end ×3
 ```
 
 ## Command-line reference
@@ -56,14 +56,14 @@ Python ≥ 3.10. Two dependencies:
 pip install numpy matplotlib
 ```
 
-That's it. No build step, no config file — drop `plot_pawley.py` next to your data (or invoke it from the data directory).
+That's it. No build step, no config file — drop `pawley_plotter.py` next to your data (or invoke it from the data directory).
 
 ## Run from anywhere (optional)
 
 To call the plotter from any shell without typing its full path, drop a one-line Windows `.cmd` shim into a folder that's on your `PATH`:
 
 ```bat
-python "C:\full\path\to\plot_pawley.py" %*
+python "C:\full\path\to\pawley_plotter.py" %*
 ```
 
 Save that as `pp.cmd` and you can run `pp -s -c` from inside any TOPAS output folder. If you don't already have a folder for personal shims, `C:\Users\<you>\bin\` is a conventional choice — create it, add it to `PATH` via *Environment Variables → User variables → Path → New*, then put `pp.cmd` inside.
@@ -72,7 +72,7 @@ Save that as `pp.cmd` and you can run `pp -s -c` from inside any TOPAS output fo
 
 ```
 ACH-Pawley-Plotter/
-├── plot_pawley.py                  # the script — single file, no other modules
+├── pawley_plotter.py                  # the script — single file, no other modules
 ├── README.md
 ├── .gitignore
 └── examples/
